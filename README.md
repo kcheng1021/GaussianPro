@@ -64,7 +64,7 @@ wget https://drive.google.com/file/d/1i2ReAJYkeLHBBbs_8Zn560Tke2F8yR1X/view?usp=
 #youtube03: The forbidden city.
 wget https://drive.google.com/file/d/1PZ_917Oq0Y45_5dJ504RxRmpUnewYmyn/view?usp=sharing
 
-#youtube04: Effel tower.
+#youtube04: Eiffel tower.
 wget https://drive.google.com/file/d/1JoYyfAu3RNnj12C2gPvfljHLUKlUsSr1/view?usp=sharing
 ```
 
