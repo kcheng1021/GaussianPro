@@ -6,9 +6,8 @@
 
 </div>
 
-## 🖼️ Motivation
 <div align="center">
-<img width="800" alt="image" src="figs/motivation.png">
+<img width="800" alt="image" src="figs/comparison.gif">
 </div>
 
 ## 📖 Abstract
@@ -69,7 +68,6 @@ wget https://drive.google.com/file/d/1JoYyfAu3RNnj12C2gPvfljHLUKlUsSr1/view?usp=
 ```
 
 ![image](https://github.com/kcheng1021/GaussianPro/blob/main/figs/output.gif)
-![image](https://github.com/kcheng1021/GaussianPro/blob/main/figs/output1.gif)
 ![image](https://github.com/kcheng1021/GaussianPro/blob/main/figs/output2.gif)
 
 #### Run the codes 
