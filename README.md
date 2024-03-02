@@ -2,7 +2,7 @@
 
   <h1 align="center">GaussianPro: 3D Gaussian Splatting with Progressive Propagation</h1>
 
-### [Project Page](https://kcheng1021.github.io/gaussianpro.github.io/) | [Paper](https://github.com/kcheng1021/GaussianPro/blob/main/figs/GaussianPro_paper.pdf)
+### [Project Page](https://kcheng1021.github.io/gaussianpro.github.io/) | [Paper](https://arxiv.org/abs/2402.14650)
 
 </div>
 
