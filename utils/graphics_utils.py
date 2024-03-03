@@ -13,7 +13,6 @@ import torch
 import math
 import numpy as np
 from typing import NamedTuple
-import pcpr
 import cv2
 import os
 
@@ -286,45 +285,6 @@ def bilinear_sampler(img, coords, mask=False):
 
     return img
 
-
-def sparse_depth_from_projection(gaussians, viewpoint_cam):
-    pc = gaussians.get_xyz.contiguous()
-    K = viewpoint_cam.K
-    img_height = viewpoint_cam.image_height
-    img_width = viewpoint_cam.image_width
-    znear = 0.1
-    zfar = 1000
-    proj_matrix = get_proj_matrix(K, (img_width, img_height), znear, zfar)
-    proj_matrix = torch.tensor(proj_matrix).cuda().to(torch.float32)
-    w2c = viewpoint_cam.world_view_transform.transpose(0, 1)
-    c2w = w2c.inverse()
-    c2w = c2w @ torch.tensor(np.diag([1., -1., -1., 1.]).astype(np.float32)).cuda()
-    w2c = c2w.inverse()
-    total_m = proj_matrix @ w2c
-    index_buffer, _ = pcpr.forward(pc, total_m.unsqueeze(0), img_width, img_height, 512)
-    sh = index_buffer.shape
-    ind = index_buffer.view(-1).long().cuda()
-
-    xyz = pc.unsqueeze(0).permute(2,0,1)
-    xyz = xyz.view(xyz.shape[0],-1)
-    proj_xyz_world = torch.index_select(xyz, 1, ind)
-    Rot, Trans = w2c[:3, :3], w2c[:3, 3][..., None]
-
-    proj_xyz_cam = Rot @ proj_xyz_world + Trans
-    proj_depth = proj_xyz_cam[2,:][None,]
-    proj_depth = proj_depth.view(proj_depth.shape[0], sh[0], sh[1], sh[2]) #[1, 4, 256, 256]
-    proj_depth = proj_depth.permute(1, 0, 2, 3)
-    proj_depth *= -1
-
-    ##mask获取
-    mask = ind.clone()
-    mask[mask>0] = 1
-    mask = mask.view(1, sh[0], sh[1], sh[2])
-    mask = mask.permute(1,0,2,3)
-
-    proj_depth = proj_depth * mask
-
-    return proj_depth.squeeze()
 
 # project the reference point cloud into the source view, then project back
 #extrinsics here refers c2w
