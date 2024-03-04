@@ -33,7 +33,7 @@ Experiments on both large-scale and small-scale scenes validate the effectivenes
 
 ## 🚀 Setup
 #### Tested Environment
-Ubuntu 20.04.1 LTS, GeForce 3090, CUDA 11.3 (tested) / 11.7 (tested)
+Ubuntu 20.04.1 LTS, GeForce 3090, CUDA 11.3 (tested) / 11.7 (tested), C++17
 
 #### Clone the repo.
 ```
