@@ -40,7 +40,7 @@ struct Camera {
 };
 
 struct Problem {
-    int ref_image_id;
+    int ref_image_id = 0; // init struct, fix bugs for random init bugs
     std::vector<int> src_image_ids;
 };
 
