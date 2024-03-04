@@ -75,11 +75,13 @@ wget https://drive.google.com/file/d/1JoYyfAu3RNnj12C2gPvfljHLUKlUsSr1/view?usp=
 
 #### Run the codes 
 ```
-# Run the 3DGS, we modify the defaulting parameters in 3DGS to better learn large scenes.
-bash scripts/train_baseline.sh
+# Run the 3DGS, we modify the defaulting parameters in 3DGS to better learn large scenes. The description of parameters in GaussianPro will come out later.
 
-# Run the GaussianPro, the description of parameters in GaussianPro will come out later.
-bash scripts/train.sh
+# To run the Waymo scenes (3DGS and GaussianPro)
+bash scripts/waymo.sh
+
+# Run the Youtube scenes above 
+bash scripts/demo.sh
 ```
 
 To ensure the reproducibility, we present a reference of the results in the provided demo scenes based on the current code.
