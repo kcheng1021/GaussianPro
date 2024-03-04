@@ -99,7 +99,7 @@ int main(int argc, char** argv)
     int patch_size = std::stoi(argv[4]);
 
     Problem problem;
-    ref_id >> problem.ref_image_id;
+    problem.ref_image_id = ref_id;
 
     std::stringstream ss(src_ids_str);
     std::string token;
