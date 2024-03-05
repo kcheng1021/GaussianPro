@@ -95,8 +95,8 @@ To ensure the reproducibility, we present a reference of the results in the prov
 
 **If you want to try your scenes, make sure your images are sorted in the time order, i.e. video data. The current version does not support unordered image sets, but it 
 will be updated in the next version. Then you can try the commands in demo.sh to run your own scenes.**
+
 **Please ensure that your neighboring images have sufficient overlap.**
-**The explaination of parameters in GaussianPro is shown in demo.sh**
 
 ## 🎫 License
 
