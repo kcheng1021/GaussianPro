@@ -91,7 +91,7 @@ To ensure the reproducibility, we present a reference of the results in the prov
 | 3DGS | 35.22,0.950,0.234 | 34.40,0.964,0.092 | 34.67,0.954,0.072 | 37.81,0.971,0.081 | 33.05,0.950,0.079 |
 | GaussianPro | **35.97,0.959,0.207** | **35.29,0.969,0.076** | **35.08,0.959,0.064** | **38.27,0.974,0.072** | **33.66,0.956,0.072** |
 
-#### Try your scenes
+### Try your scenes
 
 **If you want to try your scenes, make sure your images are sorted in the time order, i.e. video data. The current version does not support unordered image sets, but it 
 will be updated in the next version. Then you can try the commands in demo.sh to run your own scenes.**
