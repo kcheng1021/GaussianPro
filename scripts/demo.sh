@@ -11,3 +11,11 @@ python train.py -s $path/to/data$ -m $save_path$ \
 
 python render.py -m $save_path$
 python metrics.py -m $save_path$
+
+# normal_loss -- whether using planar-constrained loss
+# depth_loss -- whether using propagation
+# propagation_interval -- the frequency for activating propagation
+# depth_error_min_threshold -- the min threshold of relative depth error between rendered depth and propagated depth for initializing new gaussians
+# depth_error_max_threshold -- the max threshold of relative depth error between rendered depth and propagated depth for initializing new gaussians
+# patch size for patchmatching, make it bigger if your scenes are consisted of many large textureless planes, smaller otherwise
+# lambda_xx_normal normal loss weight
