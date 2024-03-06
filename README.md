@@ -46,7 +46,8 @@ git clone https://github.com/kcheng1021/GaussianPro.git --recursive
 conda env create --file environment.yml
 
 cd ./submodules/Propagation
-# The gpu compute architecture is specified as sm_86 in CMakeLists, please replace it with a version that is suitable for your GPU.
+# The gpu compute architecture is specified as sm_86 in CMakeLists.
+# Please replace it with a version that is suitable for your GPU.
 cmake .
 make
 ```
