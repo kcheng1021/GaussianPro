@@ -106,5 +106,5 @@ For non-commercial use, this code is released under the [LICENSE](LICENSE).
 For commercial use, please contact Xuejin Chen.
 
 ## 🎫 Acknowledgment
-This project references [3D Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting) and [ACMH/ACMM](https://github.com/GhiXu/ACMH). Thanks for their amazing works!
+This project largely references [3D Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting) and [ACMH/ACMM](https://github.com/GhiXu/ACMH). Thanks for their amazing works!
 
