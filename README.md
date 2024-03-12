@@ -100,6 +100,9 @@ will be updated in the next version. Then you can try the commands in demo.sh to
 
 **Please ensure that your neighboring images have sufficient overlap.**
 
+## 🎫 Acknowledgment
+This project references [3D Gaussian Splatting]([https://github.com/SuLvXiangXin/zipnerf-pytorch](https://github.com/graphdeco-inria/gaussian-splatting) and [ACMH](https://github.com/GhiXu/ACMH). Thanks for their amazing work!
+
 ## 🎫 License
 
 For non-commercial use, this code is released under the [LICENSE](LICENSE).
