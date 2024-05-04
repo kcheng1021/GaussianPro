@@ -1,7 +1,6 @@
 <div align="center">
 
-  <h1 align="center">GaussianPro: 3D Gaussian Splatting with Progressive Propagation</h1>
-  <h2 align="center">ICML 2024</h2>
+  <h1 align="center">[ICML 2024]GaussianPro: 3D Gaussian Splatting with Progressive Propagation</h1>
 
 ### [Project Page](https://kcheng1021.github.io/gaussianpro.github.io/) | [Paper](https://arxiv.org/abs/2402.14650)
 
@@ -116,10 +115,10 @@ If you find this project useful in your research, please consider cite:
 
 
 ```BibTeX
-@inproceedings{kai2024gaussianpro,
+@article{cheng2024gaussianpro,
   title={GaussianPro: 3D Gaussian Splatting with Progressive Propagation},
   author={Cheng, Kai and Long, Xiaoxiao and Yang, Kaizhi and Yao, Yao and Yin, Wei and Ma, Yuexin and Wang, Wenping and Chen, Xuejin},
-  journal={Proceedings of the 41 st International Conference on Machine Learning, Vienna, Austria. PMLR 235, 2024.},
+  journal={arXiv preprint arXiv:2402.14650},
   year={2024}
 }
 ```
