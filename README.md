@@ -22,7 +22,7 @@ Experiments on both large-scale and small-scale scenes validate the effectivenes
 ## 🗓️ TODO
 - [✔] Code pre-release -- Beta version. 
 - [✔] Demo Scenes.
-- [ ] Pybinding & CUDA acceleration -- Official version (Plan to release before 19 May).
+- [ ] <strong>Pybinding & CUDA acceleration -- Official version (Plan to release before 19 May)</strong>.
 - [ ] Support for unordered set of images.
 
 ## 🚀 Pipeline
