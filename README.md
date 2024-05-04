@@ -1,6 +1,7 @@
 <div align="center">
 
-  <h1 align="center">[ICML 2024]GaussianPro: 3D Gaussian Splatting with Progressive Propagation</h1>
+  <h1 align="center">GaussianPro: 3D Gaussian Splatting with Progressive Propagation</h1>
+  <h2 align="center">ICML 2024</h2>
 
 ### [Project Page](https://kcheng1021.github.io/gaussianpro.github.io/) | [Paper](https://arxiv.org/abs/2402.14650)
 
