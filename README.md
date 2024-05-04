@@ -23,7 +23,7 @@ Experiments on both large-scale and small-scale scenes validate the effectivenes
 ## 🗓️ TODO
 - [✔] Code pre-release -- Beta version. 
 - [✔] Demo Scenes.
-- [ ] CUDA acceleration -- Official version.
+- [ ] Pybinding & CUDA acceleration -- Official version (Plan to release before 19 May).
 - [ ] Support for unordered set of images.
 
 ## 🚀 Pipeline
@@ -109,3 +109,17 @@ For commercial use, please contact Xuejin Chen.
 ## 🎫 Acknowledgment
 This project largely references [3D Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting) and [ACMH/ACMM](https://github.com/GhiXu/ACMH). Thanks for their amazing works!
 
+## 🖊️ Citation
+
+
+If you find this project useful in your research, please consider cite:
+
+
+```BibTeX
+@inproceedings{kai2024gaussianpro,
+  title={GaussianPro: 3D Gaussian Splatting with Progressive Propagation},
+  author={Cheng, Kai and Long, Xiaoxiao and Yang, Kaizhi and Yao, Yao and Yin, Wei and Ma, Yuexin and Wang, Wenping and Chen, Xuejin},
+  journal={Proceedings of the 41 st International Conference on Machine Learning, Vienna, Austria. PMLR 235, 2024.},
+  year={2024}
+}
+```
