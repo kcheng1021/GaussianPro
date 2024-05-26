@@ -1,7 +1,8 @@
-#ifndef _Propagation_H_
-#define _Propagation_H_
+#ifndef _PatchMatch_H_
+#define _PatchMatch_H_
 
 #include "main.h"
+#include <torch/extension.h>
 
 int readDepthDmb(const std::string file_path, cv::Mat_<float> &depth);
 int readNormalDmb(const std::string file_path, cv::Mat_<cv::Vec3f> &normal);
@@ -42,14 +43,14 @@ struct PatchMatchParams {
     bool geom_consistency = false;
 };
 
-class Propagation {
+class PatchMatch {
 public:
-    Propagation();
-    ~Propagation();
+    PatchMatch();
+    ~PatchMatch();
 
-    void InuputInitialization(const std::string &dense_folder, const Problem &problem);
+    void InuputInitialization(torch::Tensor images_cuda, torch::Tensor intrinsics_cuda, torch::Tensor poses_cuda, torch::Tensor depth_cuda, torch::Tensor normal_cuda, torch::Tensor depth_intervals);
     void Colmap2MVS(const std::string &dense_folder, std::vector<Problem> &problems);
-    void CudaSpaceInitialization(const std::string &dense_folder, const Problem &problem);
+    void CudaSpaceInitialization();
     void RunPatchMatch();
     void SetGeomConsistencyParams();
     void SetPatchSize(int patch_size);
@@ -59,6 +60,8 @@ public:
     cv::Mat GetReferenceImage();
     float4 GetPlaneHypothesis(const int index);
     float GetCost(const int index);
+    float4* GetPlaneHypotheses();
+
 private:
     int num_images;
     std::vector<cv::Mat> images;
@@ -82,4 +85,4 @@ private:
     float *depths_cuda;
 };
 
-#endif // _Propagation_H_
+#endif // _PatchMatch_H_

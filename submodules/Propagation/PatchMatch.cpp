@@ -1,4 +1,5 @@
-#include "Propagation.h"
+#include "PatchMatch.h"
+#include <torch/extension.h>
 
 #include <cstdarg>
 
@@ -96,9 +97,9 @@ void CudaCheckError(const char* file, const int line) {
   }
 }
 
-Propagation::Propagation() {}
+PatchMatch::PatchMatch() {}
 
-Propagation::~Propagation()
+PatchMatch::~PatchMatch()
 {
     delete[] plane_hypotheses_host;
     delete[] costs_host;
@@ -124,29 +125,25 @@ Propagation::~Propagation()
     }
 }
 
-Camera ReadCamera(const std::string &cam_path)
+Camera ReadCamera(torch::Tensor intrinsic, torch::Tensor pose, torch::Tensor depth_interval)
 {
     Camera camera;
-    std::ifstream file(cam_path);
-
-    std::string line;
-    file >> line;
 
     for (int i = 0; i < 3; ++i) {
-        file >> camera.R[3 * i + 0] >> camera.R[3 * i + 1] >> camera.R[3 * i + 2] >> camera.t[i];
+        camera.R[3 * i + 0] = pose[i][0].item<float>();
+        camera.R[3 * i + 1] = pose[i][1].item<float>();
+        camera.R[3 * i + 2] = pose[i][2].item<float>();
+        camera.t[i] = pose[i][3].item<float>();
     }
-
-    float tmp[4];
-    file >> tmp[0] >> tmp[1] >> tmp[2] >> tmp[3];
-    file >> line;
 
     for (int i = 0; i < 3; ++i) {
-        file >> camera.K[3 * i + 0] >> camera.K[3 * i + 1] >> camera.K[3 * i + 2];
+        camera.K[3 * i + 0] = intrinsic[i][0].item<float>();
+        camera.K[3 * i + 1] = intrinsic[i][1].item<float>();
+        camera.K[3 * i + 2] = intrinsic[i][2].item<float>();
     }
 
-    float depth_num;
-    float interval;
-    file >> camera.depth_min >> interval >> depth_num >> camera.depth_max;
+    camera.depth_min = depth_interval[0].item<float>();
+    camera.depth_max = depth_interval[3].item<float>();
 
     return camera;
 }
@@ -406,54 +403,56 @@ static float GetDisparity(const Camera &camera, const int2 &p, const float &dept
     return std::sqrt(point3D[0] * point3D[0] + point3D[1] * point3D[1] + point3D[2] * point3D[2]);
 }
 
-void Propagation::SetGeomConsistencyParams()
+cv::Mat tensorToMat(const torch::Tensor& tensor) {
+    torch::Tensor tensor_contiguous = tensor.contiguous();
+    torch::Tensor tensor_cpu_float = tensor_contiguous.to(torch::kCPU).to(torch::kFloat32);
+
+    int height = tensor_cpu_float.size(0);
+    int width = tensor_cpu_float.size(1);
+    int channels = tensor_cpu_float.size(2); 
+
+    cv::Mat mat(cv::Size(width, height), CV_32FC(channels), tensor_cpu_float.data_ptr<float>());
+
+    return mat.clone();
+}
+
+void PatchMatch::SetGeomConsistencyParams()
 {
     params.geom_consistency = true;
     params.max_iterations = 2;
 }
 
-void Propagation::InuputInitialization(const std::string &dense_folder, const Problem &problem)
+void PatchMatch::InuputInitialization(torch::Tensor images_cuda, torch::Tensor intrinsics_cuda, torch::Tensor poses_cuda, 
+                                torch::Tensor depth_cuda, torch::Tensor normal_cuda, torch::Tensor depth_intervals)
 {
     images.clear();
     cameras.clear();
 
-    std::string image_folder = dense_folder + std::string("/images");
-    std::string cam_folder = dense_folder + std::string("/cams");
-    std::string depth_folder = dense_folder + std::string("/depths");
-
-    std::stringstream image_path;
-    image_path << image_folder << "/" << problem.ref_image_id << ".jpg";
-    cv::Mat_<uint8_t> image_uint = cv::imread(image_path.str(), cv::IMREAD_GRAYSCALE);
+    cv::Mat image_color = tensorToMat(images_cuda[0]);
     cv::Mat image_float;
-    image_uint.convertTo(image_float, CV_32FC1);
+    cv::cvtColor(image_color, image_float, cv::COLOR_RGB2GRAY);
+
+    image_float.convertTo(image_float, CV_32FC1);
     images.push_back(image_float);
 
-    std::stringstream cam_path;
-    cam_path << cam_folder << "/" << problem.ref_image_id << ".txt";
-    Camera camera = ReadCamera(cam_path.str());
+    Camera camera = ReadCamera(intrinsics_cuda[0], poses_cuda[0], depth_intervals[0]);
     camera.height = image_float.rows;
     camera.width = image_float.cols;
     cameras.push_back(camera);
 
-    std::stringstream depth_path;
-    depth_path << depth_folder << "/" << problem.ref_image_id << ".png";
-    cv::Mat ref_depth = cv::imread(depth_path.str(), cv::IMREAD_ANYDEPTH | cv::IMREAD_GRAYSCALE);
-    ref_depth.convertTo(ref_depth, CV_32FC1);
-    //scale to metric m
-    ref_depth = ref_depth / 100.;
+    cv::Mat ref_depth = tensorToMat(depth_cuda);
     depths.push_back(ref_depth);
 
-    size_t num_src_images = problem.src_image_ids.size();
-    for (size_t i = 0; i < num_src_images; ++i) {
-        std::stringstream image_path;
-        image_path << image_folder << "/" << problem.src_image_ids[i] << ".jpg";
-        cv::Mat_<uint8_t> image_uint = cv::imread(image_path.str(), cv::IMREAD_GRAYSCALE);
-        cv::Mat image_float;
-        image_uint.convertTo(image_float, CV_32FC1);
-        images.push_back(image_float);
-        std::stringstream cam_path;
-        cam_path << cam_folder << "/" << problem.src_image_ids[i] << ".txt";
-        Camera camera = ReadCamera(cam_path.str());
+    int num_src_images = images_cuda.size(0);
+    for (int i = 1; i < num_src_images; ++i) {
+        cv::Mat src_image_color = tensorToMat(images_cuda[i]);
+        cv::Mat src_image_float;
+        cv::cvtColor(src_image_color, src_image_float, cv::COLOR_RGB2GRAY);
+
+        src_image_float.convertTo(src_image_float, CV_32FC1);
+        images.push_back(src_image_float);
+
+        Camera camera = ReadCamera(intrinsics_cuda[i], poses_cuda[i], depth_intervals[i]);
         camera.height = image_float.rows;
         camera.width = image_float.cols;
         cameras.push_back(camera);
@@ -497,7 +496,7 @@ void Propagation::InuputInitialization(const std::string &dense_folder, const Pr
 
 }
 
-void Propagation::CudaSpaceInitialization(const std::string &dense_folder, const Problem &problem)
+void PatchMatch::CudaSpaceInitialization()
 {
     num_images = (int)images.size();
 
@@ -507,6 +506,7 @@ void Propagation::CudaSpaceInitialization(const std::string &dense_folder, const
 
         cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
         cudaMallocArray(&cuArray[i], &channelDesc, cols, rows);
+
         cudaMemcpy2DToArray (cuArray[i], 0, 0, images[i].ptr<float>(), images[i].step[0], cols*sizeof(float), rows, cudaMemcpyHostToDevice);
 
         struct cudaResourceDesc resDesc;
@@ -522,8 +522,16 @@ void Propagation::CudaSpaceInitialization(const std::string &dense_folder, const
         texDesc.readMode  = cudaReadModeElementType;
         texDesc.normalizedCoords = 0;
 
+        // cudaError_t error = cudaGetLastError();
+        // printf("CUDA notification0: %s\n", "test");
+        // if (error != cudaSuccess) {
+        //     printf("CUDA error step 0: %s\n", cudaGetErrorString(error));
+        //     // 错误处理代码
+        // }
+
         cudaCreateTextureObject(&(texture_objects_host.images[i]), &resDesc, &texDesc, NULL);
     }
+
     cudaMalloc((void**)&texture_objects_cuda, sizeof(cudaTextureObjects));
     cudaMemcpy(texture_objects_cuda, &texture_objects_host, sizeof(cudaTextureObjects), cudaMemcpyHostToDevice);
 
@@ -541,39 +549,45 @@ void Propagation::CudaSpaceInitialization(const std::string &dense_folder, const
 
     cudaMalloc((void**)&depths_cuda, sizeof(float) * (cameras[0].height * cameras[0].width));
     cudaMemcpy(depths_cuda, depths[0].ptr<float>(),  sizeof(float) * cameras[0].height * cameras[0].width, cudaMemcpyHostToDevice);
+
 }
 
-int Propagation::GetReferenceImageWidth()
+int PatchMatch::GetReferenceImageWidth()
 {
     return cameras[0].width;
 }
 
-int Propagation::GetReferenceImageHeight()
+int PatchMatch::GetReferenceImageHeight()
 {
     return cameras[0].height;
 }
 
-cv::Mat Propagation::GetReferenceImage()
+cv::Mat PatchMatch::GetReferenceImage()
 {
     return images[0];
 }
 
-float4 Propagation::GetPlaneHypothesis(const int index)
+float4 PatchMatch::GetPlaneHypothesis(const int index)
 {
     return plane_hypotheses_host[index];
 }
 
-float Propagation::GetCost(const int index)
+float4* PatchMatch::GetPlaneHypotheses()
+{
+    return plane_hypotheses_host;
+}
+
+float PatchMatch::GetCost(const int index)
 {
     return costs_host[index];
 }
 
-void Propagation::SetPatchSize(int patch_size)
+void PatchMatch::SetPatchSize(int patch_size)
 {
     params.patch_size = patch_size;
 }
 
-int Propagation::GetPatchSize()
+int PatchMatch::GetPatchSize()
 {
     return params.patch_size;
 }

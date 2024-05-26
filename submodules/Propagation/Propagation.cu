@@ -1,4 +1,6 @@
-#include "Propagation.h"
+#include "PatchMatch.h"
+#include <torch/extension.h>
+#include <chrono>
 
 __device__  void sort_small(float *d, const int n)
 {
@@ -191,7 +193,7 @@ __device__ float4 GenerateRandomPlaneHypothesis(const Camera camera, const int2 
         depth = curand_uniform(rand_state) * (depth_max - depth_min) + depth_min;
     }
     // printf("initdepth: %f\n", init_depth);
-    // float depth = curand_uniform(rand_state) * (depth_max - depth_min) + depth_min;
+
     float4 plane_hypothesis = GenerateRandomNormal(camera, p, rand_state, depth);
     plane_hypothesis.w = GetDistance2Origin(camera, p, depth, plane_hypothesis);
     return plane_hypothesis;
@@ -1082,7 +1084,8 @@ __global__ void RedPixelFilter(const Camera *cameras, float4 *plane_hypotheses, 
     CheckerboardFilter(cameras, plane_hypotheses, costs, p);
 }
 
-void Propagation::RunPatchMatch()
+
+void PatchMatch::RunPatchMatch()
 {
     const int width = cameras[0].width;
     const int height = cameras[0].height;
@@ -1110,12 +1113,14 @@ void Propagation::RunPatchMatch()
 
     int max_iterations = params.max_iterations;
 
-    RandomInitialization<<<grid_size_randinit, block_size_randinit>>>(texture_objects_cuda, cameras_cuda, plane_hypotheses_cuda, costs_cuda, rand_states_cuda, selected_views_cuda, params, depths_cuda);
+    RandomInitialization<<<grid_size_randinit, block_size_randinit>>>(texture_objects_cuda, cameras_cuda, plane_hypotheses_cuda, costs_cuda, rand_states_cuda, selected_views_cuda, params, depths_cuda); 
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
-
+     
     for (int i = 0; i < max_iterations; ++i) {
+
         BlackPixelUpdate<<<grid_size_checkerboard, block_size_checkerboard>>>(texture_objects_cuda, texture_depths_cuda, cameras_cuda, plane_hypotheses_cuda, costs_cuda, rand_states_cuda, selected_views_cuda, params, i);
         CUDA_SAFE_CALL(cudaDeviceSynchronize());
+        
         RedPixelUpdate<<<grid_size_checkerboard, block_size_checkerboard>>>(texture_objects_cuda, texture_depths_cuda, cameras_cuda, plane_hypotheses_cuda, costs_cuda, rand_states_cuda, selected_views_cuda, params, i);
         CUDA_SAFE_CALL(cudaDeviceSynchronize());
         // printf("iteration: %d\n", i);
@@ -1132,4 +1137,55 @@ void Propagation::RunPatchMatch()
     cudaMemcpy(plane_hypotheses_host, plane_hypotheses_cuda, sizeof(float4) * width * height, cudaMemcpyDeviceToHost);
     cudaMemcpy(costs_host, costs_cuda, sizeof(float) * width * height, cudaMemcpyDeviceToHost);
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
+}
+
+torch::Tensor matToTensor(cv::Mat& mat) {
+    cv::Mat mat_float;
+    if (mat.channels() == 3) {
+        mat.convertTo(mat_float, CV_32FC3);
+    } else if (mat.channels() == 1) {
+        mat.convertTo(mat_float, CV_32FC1);
+    }
+
+    torch::Tensor tensor = torch::from_blob(mat_float.data,
+                                            {mat_float.rows, mat_float.cols, mat_float.channels()},
+                                            torch::kFloat32).clone(); 
+
+    tensor = tensor.permute({2, 0, 1});
+
+    return tensor;
+}
+
+torch::Tensor propagate_cuda(torch::Tensor images, torch::Tensor intrinsics, torch::Tensor poses, 
+                                          torch::Tensor depth, torch::Tensor normal, torch::Tensor depth_intervals, int patch_size)
+{
+    cudaSetDevice(0);
+
+    PatchMatch pm;
+    pm.SetPatchSize(patch_size);
+
+    pm.InuputInitialization(images, intrinsics, poses, depth, normal, depth_intervals);
+
+    pm.CudaSpaceInitialization();
+    pm.RunPatchMatch();
+
+    const int width = pm.GetReferenceImageWidth();
+    const int height = pm.GetReferenceImageHeight();
+
+    torch::Tensor depths = torch::zeros({height, width}, torch::kFloat);
+    torch::Tensor normals = torch::zeros({height, width, 3}, torch::kFloat);
+
+    int numPixels = width * height;
+
+    float4* plane_hypotheses = pm.GetPlaneHypotheses();
+
+    torch::Tensor planeHypothesisTensor = torch::from_blob(plane_hypotheses, {numPixels, 4}, torch::kFloat);
+
+    torch::Tensor propagated_depth = planeHypothesisTensor.index({torch::indexing::Slice(), 3}).reshape({height, width}).unsqueeze(0);
+
+    torch::Tensor propagated_normal = planeHypothesisTensor.index({torch::indexing::Slice(), torch::indexing::Slice(0, 3)}).reshape({height, width, 3}).permute({2, 0, 1});
+
+    torch::Tensor results = torch::cat({propagated_depth, propagated_normal}, 0);
+
+    return results;
 }

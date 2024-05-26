@@ -15,6 +15,7 @@ import numpy as np
 from typing import NamedTuple
 import cv2
 import os
+from gaussianpro import propagate
 
 class BasicPointCloud(NamedTuple):
     points : np.array
@@ -286,6 +287,45 @@ def bilinear_sampler(img, coords, mask=False):
     return img
 
 
+# def sparse_depth_from_projection(gaussians, viewpoint_cam):
+#     pc = gaussians.get_xyz.contiguous()
+#     K = viewpoint_cam.K
+#     img_height = viewpoint_cam.image_height
+#     img_width = viewpoint_cam.image_width
+#     znear = 0.1
+#     zfar = 1000
+#     proj_matrix = get_proj_matrix(K, (img_width, img_height), znear, zfar)
+#     proj_matrix = torch.tensor(proj_matrix).cuda().to(torch.float32)
+#     w2c = viewpoint_cam.world_view_transform.transpose(0, 1)
+#     c2w = w2c.inverse()
+#     c2w = c2w @ torch.tensor(np.diag([1., -1., -1., 1.]).astype(np.float32)).cuda()
+#     w2c = c2w.inverse()
+#     total_m = proj_matrix @ w2c
+#     index_buffer, _ = pcpr.forward(pc, total_m.unsqueeze(0), img_width, img_height, 512)
+#     sh = index_buffer.shape
+#     ind = index_buffer.view(-1).long().cuda()
+
+#     xyz = pc.unsqueeze(0).permute(2,0,1)
+#     xyz = xyz.view(xyz.shape[0],-1)
+#     proj_xyz_world = torch.index_select(xyz, 1, ind)
+#     Rot, Trans = w2c[:3, :3], w2c[:3, 3][..., None]
+
+#     proj_xyz_cam = Rot @ proj_xyz_world + Trans
+#     proj_depth = proj_xyz_cam[2,:][None,]
+#     proj_depth = proj_depth.view(proj_depth.shape[0], sh[0], sh[1], sh[2]) #[1, 4, 256, 256]
+#     proj_depth = proj_depth.permute(1, 0, 2, 3)
+#     proj_depth *= -1
+
+#     ##mask获取
+#     mask = ind.clone()
+#     mask[mask>0] = 1
+#     mask = mask.view(1, sh[0], sh[1], sh[2])
+#     mask = mask.permute(1,0,2,3)
+
+#     proj_depth = proj_depth * mask
+
+#     return proj_depth.squeeze()
+
 # project the reference point cloud into the source view, then project back
 #extrinsics here refers c2w
 def reproject_with_depth(depth_ref, intrinsics_ref, extrinsics_ref, depth_src, intrinsics_src, extrinsics_src):
@@ -355,12 +395,8 @@ def check_geometric_consistency(depth_ref, intrinsics_ref, extrinsics_ref, depth
 
     return mask, depth_reprojected, x2d_src, y2d_src, relative_depth_diff
 
-def depth_propagation(viewpoint_cam, projected_depth, viewpoint_stack, src_idxs, dataset, patch_size):
-    # pass data to c++ api for mvs
-    cdata_image_path = './cache/images'
-    cdata_camera_path = './cache/cams'
-    cdata_depth_path = './cache/depths'
-
+def depth_propagation(viewpoint_cam, rendered_depth, viewpoint_stack, src_idxs, dataset, patch_size):
+    
     depth_min = 0.1
     if dataset == 'waymo':
         depth_max = 80
@@ -369,35 +405,38 @@ def depth_propagation(viewpoint_cam, projected_depth, viewpoint_stack, src_idxs,
     else:
         depth_max = 20
 
-    # rendered_depth[rendered_depth>120] = 1e-3
-    #scale it for float type
-    projected_depth = projected_depth * 100
-
-    ref_img = viewpoint_cam.original_image
-    ref_img = ref_img * 255
-    ref_img = ref_img.permute((1, 2, 0)).detach().cpu().numpy().astype(np.uint8)
-    ref_img = cv2.cvtColor(ref_img, cv2.COLOR_BGR2RGB)
-    ref_K = viewpoint_cam.K
-    ref_w2c = viewpoint_cam.world_view_transform.transpose(0, 1)
-    cv2.imwrite(os.path.join(cdata_image_path, "0.jpg"), ref_img)
-    cv2.imwrite(os.path.join(cdata_depth_path, "0.png"), projected_depth.detach().cpu().numpy().astype(np.uint16))
-    write_cam_txt(os.path.join(cdata_camera_path, "0.txt"), ref_K.detach().cpu().numpy(), ref_w2c.detach().cpu().numpy(),
-                                                            [depth_min, (depth_max-depth_min)/192.0, 192.0, depth_max])
+    images = list()
+    intrinsics = list()
+    poses = list()
+    depth_intervals = list()
+    
+    images.append((viewpoint_cam.original_image * 255).permute((1, 2, 0)).to(torch.uint8))
+    intrinsics.append(viewpoint_cam.K)
+    poses.append(viewpoint_cam.world_view_transform.transpose(0, 1))
+    depth_interval = torch.tensor([depth_min, (depth_max-depth_min)/192.0, 192.0, depth_max])
+    depth_intervals.append(depth_interval)
+    
+    depth = rendered_depth.unsqueeze(-1)
+    normal = torch.zeros_like(depth)
+    
     for idx, src_idx in enumerate(src_idxs):
         src_viewpoint = viewpoint_stack[src_idx]
-        src_w2c = src_viewpoint.world_view_transform.transpose(0, 1)
-        src_K = src_viewpoint.K
-        src_img = src_viewpoint.original_image
-        src_img = src_img * 255
-        src_img = src_img.permute((1, 2, 0)).detach().cpu().numpy().astype(np.uint8)
-        src_img = cv2.cvtColor(src_img, cv2.COLOR_BGR2RGB)
+        images.append((src_viewpoint.original_image * 255).permute((1, 2, 0)).to(torch.uint8))
+        intrinsics.append(src_viewpoint.K)
+        poses.append(src_viewpoint.world_view_transform.transpose(0, 1))
+        depth_intervals.append(depth_interval)
+        
+    images = torch.stack(images)
+    intrinsics = torch.stack(intrinsics)
+    poses = torch.stack(poses)
+    depth_intervals = torch.stack(depth_intervals)
 
-        cv2.imwrite(os.path.join(cdata_image_path, str(idx+1)+".jpg"), src_img)
-        write_cam_txt(os.path.join(cdata_camera_path, str(idx+1)+".txt"), src_K.detach().cpu().numpy(), src_w2c.detach().cpu().numpy(),
-                                                                            [depth_min, (depth_max-depth_min)/192.0, 192.0, depth_max])
-    # c++ api for depth propagation
-    propagation_command = './submodules/Propagation/Propagation ./cache 0 "1 2 3 4" ' + str(patch_size)
-    os.system(propagation_command)
+    results = propagate(images, intrinsics, poses, depth, normal, depth_intervals, patch_size)
+    propagated_depth = results[0].to(rendered_depth.device)
+    propagated_normal = results[1:4].to(rendered_depth.device).permute(1, 2, 0)
+    
+    return propagated_depth, propagated_normal
+
     
 def generate_edge_mask(propagated_depth, patch_size):
     # img gradient

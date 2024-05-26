@@ -12,10 +12,10 @@
 import os
 import torch
 from random import randint
-from utils.loss_utils import l1_loss, ssim
+from utils.loss_utils import l1_loss, ssim, compute_scale_and_shift, ScaleAndShiftInvariantLoss
 from utils.general_utils import vis_depth, read_propagted_depth
 from gaussian_renderer import render, network_gui
-from utils.graphics_utils import depth_propagation, check_geometric_consistency
+from utils.graphics_utils import surface_normal_from_depth, img_warping, depth_propagation, check_geometric_consistency, generate_edge_mask
 import sys
 from scene import Scene, GaussianModel
 from utils.general_utils import safe_state, load_pairs_relation
@@ -27,6 +27,7 @@ from arguments import ModelParams, PipelineParams, OptimizationParams
 import imageio
 import numpy as np
 import torchvision
+import cv2
 try:
     from torch.utils.tensorboard import SummaryWriter
     TENSORBOARD_FOUND = True
@@ -92,14 +93,18 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             gaussians.oneupSHdegree()
 
         # Pick a random Camera
+        # if not viewpoint_stack:
+        #     viewpoint_stack = scene.getTrainCameras().copy()
         randidx = randint(0, len(viewpoint_stack)-1)
+        # if iteration > propagated_iteration_begin and iteration < propagated_iteration_after and after_propagated:
+        #     randidx = propagated_view_index
         viewpoint_cam = viewpoint_stack[randidx]
         
-        # set the neighboring frames
         if opt.depth_loss:
             if opt.dataset == '360':
                 src_idxs = pairs[randidx]
             else:
+                # intervals = [-6, -3, 3, 6]
                 if opt.dataset == 'waymo':
                     intervals = [-2, -1, 1, 2]
                 elif opt.dataset == 'scannet':
@@ -110,7 +115,8 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
 
         #propagate the gaussians first
         with torch.no_grad():
-            if opt.depth_loss and iteration > propagated_iteration_begin and iteration < propagated_iteration_after and (iteration % opt.propagation_interval == 0):
+           if opt.depth_loss and iteration > propagated_iteration_begin and iteration < propagated_iteration_after and (iteration % opt.propagation_interval == 0 and not propagation_dict[viewpoint_cam.image_name]):
+            # if opt.depth_loss and iteration > propagated_iteration_begin and iteration < propagated_iteration_after and (iteration % opt.propagation_interval == 0):
                 propagation_dict[viewpoint_cam.image_name] = True
 
                 render_pkg = render(viewpoint_cam, gaussians, pipe, bg, 
@@ -123,18 +129,18 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                     sky_mask = viewpoint_cam.sky_mask.to(opacity_mask.device).to(torch.bool)
                 else:
                     sky_mask = None
+                torchvision.utils.save_image(viewpoint_cam.original_image, "cost/"+viewpoint_cam.image_name+"_"+str(iteration)+"gt.png")
 
                 # get the propagated depth
-                depth_propagation(viewpoint_cam, projected_depth, viewpoint_stack, src_idxs, opt.dataset, opt.patch_size)
-                propagated_depth, cost, normal = read_propagted_depth('./cache/propagated_depth')
-                cost = torch.tensor(cost).to(projected_depth.device)
-                normal = torch.tensor(normal).to(projected_depth.device)
+                propagated_depth, normal = depth_propagation(viewpoint_cam, projected_depth, viewpoint_stack, src_idxs, opt.dataset, opt.patch_size)
+
+                # cache the propagated_depth
+                viewpoint_cam.depth = propagated_depth
+
                 #transform normal to camera coordinate
                 R_w2c = torch.tensor(viewpoint_cam.R.T).cuda().to(torch.float32)
                 # R_w2c[:, 1:] *= -1
                 normal = (R_w2c @ normal.view(-1, 3).permute(1, 0)).view(3, viewpoint_cam.image_height, viewpoint_cam.image_width)                
-                
-                propagated_depth = torch.tensor(propagated_depth).to(projected_depth.device)
                 valid_mask = propagated_depth != 300
 
                 # calculate the abs rel depth error of the propagated depth and rendered depth & render color error
@@ -143,15 +149,18 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 abs_rel_error_threshold = opt.depth_error_max_threshold - (opt.depth_error_max_threshold - opt.depth_error_min_threshold) * (iteration - propagated_iteration_begin) / (propagated_iteration_after - propagated_iteration_begin)
                 # color error
                 render_color = render_pkg['render']
+                torchvision.utils.save_image(render_color, "cost/"+viewpoint_cam.image_name+"_"+str(iteration)+"color.png")
 
                 color_error = torch.abs(render_color - viewpoint_cam.original_image)
                 color_error = color_error.mean(dim=0).squeeze()
-                #for waymo, quantile 0.6; for free dataset, quantile 0.4
                 error_mask = (abs_rel_error > abs_rel_error_threshold)
+
+                # # calculate the photometric consistency
+                ref_K = viewpoint_cam.K
+                #c2w
+                ref_pose = viewpoint_cam.world_view_transform.transpose(0, 1).inverse()
                 
                 # calculate the geometric consistency
-                ref_K = viewpoint_cam.K
-                ref_pose = viewpoint_cam.world_view_transform.transpose(0, 1).inverse()
                 geometric_counts = None
                 for idx, src_idx in enumerate(src_idxs):
                     src_viewpoint = viewpoint_stack[src_idx]
@@ -159,26 +168,29 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                     src_pose = src_viewpoint.world_view_transform.transpose(0, 1).inverse()
                     src_K = src_viewpoint.K
 
-                    src_render_pkg = render(src_viewpoint, gaussians, pipe, bg, 
-                            return_normal=opt.normal_loss, return_opacity=False, return_depth=opt.depth_loss or opt.depth2normal_loss)
-                    src_projected_depth = src_render_pkg['render_depth']
+                    if src_viewpoint.depth is None:
+                        src_render_pkg = render(src_viewpoint, gaussians, pipe, bg, 
+                                return_normal=opt.normal_loss, return_opacity=False, return_depth=opt.depth_loss or opt.depth2normal_loss)
+                        src_projected_depth = src_render_pkg['render_depth']
                     
                     #get the src_depth first
-                    depth_propagation(src_viewpoint, torch.zeros_like(src_projected_depth).cuda(), viewpoint_stack, src_idxs, opt.dataset, opt.patch_size)
-                    src_depth, cost, src_normal = read_propagted_depth('./cache/propagated_depth')
-                    src_depth = torch.tensor(src_depth).cuda()
+                        src_depth, src_normal = depth_propagation(src_viewpoint, src_projected_depth, viewpoint_stack, src_idxs, opt.dataset, opt.patch_size)
+                        src_viewpoint.depth = src_depth
+                    else:
+                        src_depth = src_viewpoint.depth
+                        
                     mask, depth_reprojected, x2d_src, y2d_src, relative_depth_diff = check_geometric_consistency(propagated_depth.unsqueeze(0), ref_K.unsqueeze(0), 
                                                                                                                  ref_pose.unsqueeze(0), src_depth.unsqueeze(0), 
                                                                                                                  src_K.unsqueeze(0), src_pose.unsqueeze(0), thre1=2, thre2=0.01)
+                    
                     if geometric_counts is None:
                         geometric_counts = mask.to(torch.uint8)
                     else:
                         geometric_counts += mask.to(torch.uint8)
                         
                 cost = geometric_counts.squeeze()
-                cost_mask = cost >= 2
+                cost_mask = cost >= 2       
                 
-                #set -10 as nan              
                 normal[~(cost_mask.unsqueeze(0).repeat(3, 1, 1))] = -10
                 viewpoint_cam.normal = normal
                 
@@ -186,6 +198,10 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 if sky_mask is not None:
                     propagated_mask = propagated_mask & sky_mask
 
+                propagated_depth[~cost_mask] = 300 
+                # propagated_mask = propagated_mask & edge_mask
+                propagated_depth[~propagated_mask] = 300
+  
                 if propagated_mask.sum() > 100:
                     gaussians.densify_from_depth_propagation(viewpoint_cam, propagated_depth, propagated_mask.to(torch.bool), gt_image) 
                 
@@ -238,6 +254,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                     filter_mask = viewpoint_cam.sky_mask.to(normal_gt.device).to(torch.bool)
                     normal_gt[~(filter_mask.unsqueeze(0).repeat(3, 1, 1))] = -10
                 filter_mask = (normal_gt != -10)[0, :, :].to(torch.bool)
+
                 l1_normal = torch.abs(rendered_normal - normal_gt).sum(dim=0)[filter_mask].mean()
                 cos_normal = (1. - torch.sum(rendered_normal * normal_gt, dim = 0))[filter_mask].mean()
                 loss += opt.lambda_l1_normal * l1_normal + opt.lambda_cos_normal * cos_normal
@@ -352,8 +369,8 @@ if __name__ == "__main__":
     parser.add_argument('--port', type=int, default=6009)
     parser.add_argument('--debug_from', type=int, default=-1)
     parser.add_argument('--detect_anomaly', action='store_true', default=False)
-    parser.add_argument("--test_iterations", nargs="+", type=int, default=[1, 2000, 7000, 30000])
-    parser.add_argument("--save_iterations", nargs="+", type=int, default=[1, 7000, 30000])
+    parser.add_argument("--test_iterations", nargs="+", type=int, default=[1, 2000, 7000, 20000, 50000])
+    parser.add_argument("--save_iterations", nargs="+", type=int, default=[1, 7000, 20000, 50000])
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
     parser.add_argument("--start_checkpoint", type=str, default = None)
@@ -366,8 +383,6 @@ if __name__ == "__main__":
     # Initialize system state (RNG)
     safe_state(args.quiet)
 
-    # Start GUI server, configure and run training
-    # network_gui.init(args.ip, args.port)
     torch.autograd.set_detect_anomaly(args.detect_anomaly)
     training(lp.extract(args), op.extract(args), pp.extract(args), args.test_iterations, args.save_iterations, args.checkpoint_iterations, args.start_checkpoint, args.debug_from)
 
