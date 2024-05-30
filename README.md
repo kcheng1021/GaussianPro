@@ -23,7 +23,7 @@ Experiments on both large-scale and small-scale scenes validate the effectivenes
 ## 🗓️ TODO
 - [✔] Code pre-release -- Beta version. 
 - [✔] Demo Scenes.
-- [✔] <strong>Pybinding & CUDA acceleration -- Seen in the branch of version 1.0 </strong>.
+- [✔] <strong>Pybinding & CUDA acceleration -- Please found in the branch of version 1.0 </strong>.
 - [ ] Support for unordered set of images.
 
 ## 🚀 Pipeline
