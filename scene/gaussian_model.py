@@ -123,15 +123,15 @@ class GaussianModel:
 
     def create_from_pcd(self, pcd : BasicPointCloud, spatial_lr_scale : float):
         self.spatial_lr_scale = spatial_lr_scale
-        fused_point_cloud = torch.tensor(np.asarray(pcd.points)).float().cuda()
-        fused_color = RGB2SH(torch.tensor(np.asarray(pcd.colors)).float().cuda())
-        features = torch.zeros((fused_color.shape[0], 3, (self.max_sh_degree + 1) ** 2)).float().cuda()
+        fused_point_cloud = torch.tensor(np.asarray(pcd.points), dtype=torch.float, device="cuda")
+        fused_color = RGB2SH(torch.tensor(np.asarray(pcd.colors), dtype=torch.float, device="cuda"))
+        features = torch.zeros((fused_color.shape[0], 3, (self.max_sh_degree + 1) ** 2), dtype=torch.float, device="cuda")
         features[:, :3, 0 ] = fused_color
         features[:, 3:, 1:] = 0.0
 
         print("Number of points at initialisation : ", fused_point_cloud.shape[0])
 
-        dist2 = torch.clamp_min(distCUDA2(torch.from_numpy(np.asarray(pcd.points)).float().cuda()), 0.0000001)
+        dist2 = torch.clamp_min(distCUDA2(torch.tensor(np.asarray(pcd.points), dtype=torch.float, device="cuda")), 0.0000001)
         scales = torch.log(torch.sqrt(dist2))[...,None].repeat(1, 3)
         rots = torch.zeros((fused_point_cloud.shape[0], 4), device="cuda")
         rots[:, 0] = 1
@@ -414,11 +414,11 @@ class GaussianModel:
         # Get the shape of the depth image
         height, width = propagated_depth.shape
         # Create a grid of 2D pixel coordinates
-        y, x = torch.meshgrid(torch.arange(0, height), torch.arange(0, width))
+        y, x = torch.meshgrid(torch.arange(0, height, device="cuda"), torch.arange(0, width, device="cuda"))
         # Stack the 2D and depth coordinates to create 3D homogeneous coordinates
-        coordinates = torch.stack([x.to(propagated_depth.device), y.to(propagated_depth.device), torch.ones_like(propagated_depth)], dim=-1)
+        coordinates = torch.stack((x, y, torch.ones_like(propagated_depth)), dim=-1)
         # Reshape the coordinates to (height * width, 3)
-        coordinates = coordinates.view(-1, 3).to(K.device).to(torch.float32)
+        coordinates = coordinates.view(-1, 3)
         # Reproject the 2D coordinates to 3D coordinates
         coordinates_3D = (K.inverse() @ coordinates.T).T
 
@@ -447,7 +447,7 @@ class GaussianModel:
         # initialize gaussians
         fused_point_cloud = world_coordinates_3D_downsampled
         fused_color = RGB2SH(color_downsampled)
-        features = torch.zeros((fused_color.shape[0], 3, (self.max_sh_degree + 1) ** 2)).to(fused_color.device)
+        features = torch.zeros((fused_color.shape[0], 3, (self.max_sh_degree + 1) ** 2), device=fused_color.device)
         features[:, :3, 0 ] = fused_color
         features[:, 3:, 1:] = 0.0
 

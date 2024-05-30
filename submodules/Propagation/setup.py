@@ -8,8 +8,8 @@ setup(
     name='gaussianpro',
     ext_modules=[
         CUDAExtension('gaussianpro',
-            include_dirs=['/data/kcheng/anaconda3/envs/procuda/include/opencv4', '/usr/local/cuda-11.7/include', '.'],
-            library_dirs=['/data/kcheng/anaconda3/envs/procuda/lib'],  
+            include_dirs=['/home/duan/anaconda3/include/opencv4'],  # , '/usr/local/cuda-11.7/include', '.'],
+            # library_dirs=['/data/kcheng/anaconda3/envs/procuda/lib'],
             libraries=['opencv_core', 'opencv_imgproc', 'opencv_highgui', 'opencv_imgcodecs'],  
             sources=[
                 'PatchMatch.cpp', 
@@ -17,7 +17,7 @@ setup(
                 'pro.cpp'
             ],
             extra_compile_args={
-                'cxx': ['-O3'],
+                'cxx': ['-Ofast', '-march=native', '-mtune=native', '-flto', '-fopenmp'],
                 'nvcc': ['-O3',
                     '-gencode=arch=compute_86,code=sm_86',
                 ]

@@ -71,10 +71,10 @@ def receive():
             do_rot_scale_python = bool(message["rot_scale_python"])
             keep_alive = bool(message["keep_alive"])
             scaling_modifier = message["scaling_modifier"]
-            world_view_transform = torch.reshape(torch.tensor(message["view_matrix"]), (4, 4)).cuda()
+            world_view_transform = torch.reshape(torch.tensor(message["view_matrix"], device="cuda"), (4, 4))
             world_view_transform[:,1] = -world_view_transform[:,1]
             world_view_transform[:,2] = -world_view_transform[:,2]
-            full_proj_transform = torch.reshape(torch.tensor(message["view_projection_matrix"]), (4, 4)).cuda()
+            full_proj_transform = torch.reshape(torch.tensor(message["view_projection_matrix"], device="cuda"), (4, 4))
             full_proj_transform[:,1] = -full_proj_transform[:,1]
             custom_cam = MiniCam(width, height, fovy, fovx, znear, zfar, world_view_transform, full_proj_transform)
         except Exception as e:

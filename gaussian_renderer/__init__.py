@@ -123,14 +123,14 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
         rotations_mat = build_rotation(rotations)
         scales = pc.get_scaling
         min_scales = torch.argmin(scales, dim=1)
-        indices = torch.arange(min_scales.shape[0])
+        indices = torch.arange(min_scales.shape[0], device="cuda")
         normal = rotations_mat[indices, :, min_scales]
 
         # convert normal direction to the camera; calculate the normal in the camera coordinate
         view_dir = means3D - viewpoint_camera.camera_center
         normal   = normal * ((((view_dir * normal).sum(dim=-1) < 0) * 1 - 0.5) * 2)[...,None]
 
-        R_w2c = torch.tensor(viewpoint_camera.R.T).cuda().to(torch.float32)
+        R_w2c = torch.tensor(viewpoint_camera.R.T, dtype=torch.float, device="cuda")
         normal = (R_w2c @ normal.transpose(0, 1)).transpose(0, 1)
   
         render_normal, _ = rasterizer(

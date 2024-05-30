@@ -12,10 +12,10 @@
 import os
 import torch
 from random import randint
-from utils.loss_utils import l1_loss, ssim, compute_scale_and_shift, ScaleAndShiftInvariantLoss
+from utils.loss_utils import l1_loss, ssim
 from utils.general_utils import vis_depth, read_propagted_depth
 from gaussian_renderer import render, network_gui
-from utils.graphics_utils import surface_normal_from_depth, img_warping, depth_propagation, check_geometric_consistency, generate_edge_mask
+from utils.graphics_utils import depth_propagation, check_geometric_consistency
 import sys
 from scene import Scene, GaussianModel
 from utils.general_utils import safe_state, load_pairs_relation
@@ -27,7 +27,6 @@ from arguments import ModelParams, PipelineParams, OptimizationParams
 import imageio
 import numpy as np
 import torchvision
-import cv2
 try:
     from torch.utils.tensorboard import SummaryWriter
     TENSORBOARD_FOUND = True
@@ -93,11 +92,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             gaussians.oneupSHdegree()
 
         # Pick a random Camera
-        # if not viewpoint_stack:
-        #     viewpoint_stack = scene.getTrainCameras().copy()
         randidx = randint(0, len(viewpoint_stack)-1)
-        # if iteration > propagated_iteration_begin and iteration < propagated_iteration_after and after_propagated:
-        #     randidx = propagated_view_index
         viewpoint_cam = viewpoint_stack[randidx]
         
         if opt.depth_loss:
@@ -129,7 +124,6 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                     sky_mask = viewpoint_cam.sky_mask.to(opacity_mask.device).to(torch.bool)
                 else:
                     sky_mask = None
-                torchvision.utils.save_image(viewpoint_cam.original_image, "cost/"+viewpoint_cam.image_name+"_"+str(iteration)+"gt.png")
 
                 # get the propagated depth
                 propagated_depth, normal = depth_propagation(viewpoint_cam, projected_depth, viewpoint_stack, src_idxs, opt.dataset, opt.patch_size)
@@ -138,7 +132,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 viewpoint_cam.depth = propagated_depth
 
                 #transform normal to camera coordinate
-                R_w2c = torch.tensor(viewpoint_cam.R.T).cuda().to(torch.float32)
+                R_w2c = torch.tensor(viewpoint_cam.R.T, dtype=torch.float, device="cuda")
                 # R_w2c[:, 1:] *= -1
                 normal = (R_w2c @ normal.view(-1, 3).permute(1, 0)).view(3, viewpoint_cam.image_height, viewpoint_cam.image_width)                
                 valid_mask = propagated_depth != 300
@@ -148,11 +142,10 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 abs_rel_error = torch.abs(propagated_depth - render_depth) / propagated_depth
                 abs_rel_error_threshold = opt.depth_error_max_threshold - (opt.depth_error_max_threshold - opt.depth_error_min_threshold) * (iteration - propagated_iteration_begin) / (propagated_iteration_after - propagated_iteration_begin)
                 # color error
-                render_color = render_pkg['render']
-                torchvision.utils.save_image(render_color, "cost/"+viewpoint_cam.image_name+"_"+str(iteration)+"color.png")
+                # render_color = render_pkg['render']
 
-                color_error = torch.abs(render_color - viewpoint_cam.original_image)
-                color_error = color_error.mean(dim=0).squeeze()
+                # color_error = torch.abs(render_color - viewpoint_cam.original_image)
+                # color_error = color_error.mean(dim=0).squeeze()
                 error_mask = (abs_rel_error > abs_rel_error_threshold)
 
                 # # calculate the photometric consistency
@@ -340,7 +333,7 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
                 psnr_test = 0.0
                 for idx, viewpoint in enumerate(config['cameras']):
                     image = torch.clamp(renderFunc(viewpoint, scene.gaussians, *renderArgs)["render"], 0.0, 1.0)
-                    gt_image = torch.clamp(viewpoint.original_image.to("cuda"), 0.0, 1.0)
+                    gt_image = torch.clamp(viewpoint.original_image.cuda(), 0.0, 1.0)
                     if tb_writer and (idx < 5):
                         tb_writer.add_images(config['name'] + "_view_{}/render".format(viewpoint.image_name), image[None], global_step=iteration)
                         if iteration == testing_iterations[0]:
