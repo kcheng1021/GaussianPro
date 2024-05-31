@@ -46,11 +46,11 @@ git clone https://github.com/kcheng1021/GaussianPro.git --recursive
 ```
 conda env create --file environment.yml
 
-cd ./submodules/Propagation
-# The gpu compute architecture is specified as sm_86 in CMakeLists.
-# Please replace it with a version that is suitable for your GPU.
-cmake .
-make
+# install the propagation package
+# The gpu compute architecture is specified as sm_86 in setup.py. Please replace it with a version that is suitable for your GPU.
+# Replace the opencv and CUDA include/lib path with your own 
+pip install ./submodules/Propagation
+
 ```
 
 #### Download the demo Waymo scene: Segment-102751
