@@ -103,6 +103,7 @@ class OptimizationParams(ParamGroup):
         self.random_background = False
 
         #propagation parameters
+        self.ordered = False
         self.dataset = 'waymo'
         self.propagation_interval = 20
         self.depth_error_min_threshold = 1.0

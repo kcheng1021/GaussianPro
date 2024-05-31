@@ -56,6 +56,15 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     iter_end = torch.cuda.Event(enable_timing = True)
 
     viewpoint_stack = scene.getTrainCameras().copy()
+    if not opt.ordered:
+        distances = torch.zeros(len(viewpoint_stack), len(viewpoint_stack), device="cuda")
+        for i, view in tqdm(enumerate(viewpoint_stack), desc="Calculating distances"):
+            for j, other_view in enumerate(viewpoint_stack):
+                distances[j, i] = distances[i, j] = torch.norm(view.camera_center - other_view.camera_center)
+        neighbor_indices = torch.argsort(distances, dim=1)[:, :5]
+    else:
+        neighbor_indices = None
+
     ema_loss_for_log = 0.0
     progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
     first_iter += 1
@@ -98,7 +107,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         if opt.depth_loss:
             if opt.dataset == '360':
                 src_idxs = pairs[randidx]
-            else:
+            elif opt.ordered:
                 # intervals = [-6, -3, 3, 6]
                 if opt.dataset == 'waymo':
                     intervals = [-2, -1, 1, 2]
@@ -107,6 +116,8 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 elif opt.dataset == 'free':
                     intervals = [-2, -1, 1, 2]
                 src_idxs = [randidx+itv for itv in intervals if ((itv + randidx > 0) and (itv + randidx < len(viewpoint_stack)))]
+            else:
+                src_idxs = neighbor_indices[randidx].tolist()
 
         #propagate the gaussians first
         with torch.no_grad():
