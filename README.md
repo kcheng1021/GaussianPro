@@ -48,7 +48,8 @@ conda env create --file environment.yml
 
 # install the propagation package
 # The gpu compute architecture is specified as sm_86 in setup.py. Please replace it with a version that is suitable for your GPU.
-# Replace the opencv and CUDA include/lib path with your own 
+# Replace the opencv and CUDA include/lib path with your own
+# the C++ opencv is better installed in conda environment by conda install -c conda-forge opencv 
 pip install ./submodules/Propagation
 
 ```
