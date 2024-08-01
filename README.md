@@ -25,6 +25,7 @@ Experiments on both large-scale and small-scale scenes validate the effectivenes
 - [✔] Demo Scenes.
 - [✔] <strong>Pybinding & CUDA acceleration</strong>.
 - [ ] Support for unordered set of images.
+
 <strong>Some amazing enhancement are under development. We warmly welcome anyone to collaborate in improving this repository. Please send me an email if you are interested!</strong>
 
 ## 🚀 Pipeline
