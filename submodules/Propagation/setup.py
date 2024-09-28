@@ -7,10 +7,7 @@ ROOT = osp.dirname(osp.abspath(__file__))
 setup(
     name='gaussianpro',
     ext_modules=[
-        CUDAExtension('gaussianpro',
-            include_dirs=['/data/kcheng/anaconda3/envs/procuda/include/opencv4', '/usr/local/cuda-11.7/include', '.'],
-            library_dirs=['/data/kcheng/anaconda3/envs/procuda/lib'],  
-            libraries=['opencv_core', 'opencv_imgproc', 'opencv_highgui', 'opencv_imgcodecs'],  
+        CUDAExtension('gaussianpro', 
             sources=[
                 'PatchMatch.cpp', 
                 'Propagation.cu',
