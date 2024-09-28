@@ -19,6 +19,11 @@ In this paper, inspired by classical multi-view stereo (MVS) techniques, we prop
 Compared to the simple split and clone strategies used in 3DGS, our method leverages the priors of the existing reconstructed geometries of the scene and patch matching techniques to produce new Gaussians with accurate positions and orientations.
 Experiments on both large-scale and small-scale scenes validate the effectiveness of our method, where our method significantly surpasses 3DGS on the Waymo dataset, exhibiting an improvement of 1.15dB in terms of PSNR.
 
+## 🗓️ News
+
+[2024.9.28]  Many thanks to [Chongjie Ye](https://github.com/hugoycj), the project avoid the dependency on Opencv C++ libraray, making it more convenient to install!
+
+Some amazing enhancements will also come out this year.
 
 ## 🗓️ TODO
 - [✔] Code pre-release -- Beta version. 
