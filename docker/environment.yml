@@ -1,0 +1,16 @@
+name: gaussianpro
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - cudatoolkit=11.7
+  - plyfile=0.8.1
+  - python=3.7.13
+  - pip=22.3.1
+  - tqdm
+  - ninja
+  - opencv-python=4.10.0.84
+  - matplotlib=3.5.3
+  - open3d=0.17.0
+  - imageio=2.31.2
