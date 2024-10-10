@@ -21,6 +21,7 @@ Experiments on both large-scale and small-scale scenes validate the effectivenes
 
 ## 🗓️ News
 
+[2024.10.10] Many thanks to [Caio Viturino](https://github.com/caioviturinofs), the project provides the docker environment!
 [2024.9.28]  Many thanks to [Chongjie Ye](https://github.com/hugoycj), the project avoid the dependency on Opencv C++ libraray, making it more convenient to install!
 
 Some amazing enhancements will also come out this year.
