@@ -61,7 +61,7 @@ pip install ./submodules/Propagation
 
 ```
 
-#### Docker install
+#### Docker install (Alternative)
 
 To build the GaussianPro using docker, execute the following commands:
 ```bash
