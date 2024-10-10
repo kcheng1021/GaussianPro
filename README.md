@@ -61,6 +61,19 @@ pip install ./submodules/Propagation
 
 ```
 
+#### Docker install
+
+To build the GaussianPro using docker, execute the following commands:
+```bash
+sh docker/build_gaussian_pro_docker.sh
+```
+
+To execute the container, run:
+```bash
+# Please remember to substitute the dataset path to your desired path
+sh docker/run_gaussian_pro_docker.sh
+```
+
 #### Download the demo Waymo scene: Segment-102751
 ```
 wget https://drive.google.com/file/d/1DXQRBcUIrnIC33WNq8pVLKZ_W1VwON3k/view?usp=sharing
